@@ -1,9 +1,9 @@
 from tensorflow.keras import layers
 from tensorflow.keras import backend as K
 from tensorflow.keras import activations, Model, Input
-
-
-def basic_block(x, out_ch, kernel_size=3, stride=1, last_act=True):
+# tensorflow.python.keras.layers.noise.GaussianNoise
+# from tensorflow.python.keras.layers.noise import GaussianNoise
+def basic_block(x, out_ch, kernel_size=10, stride=1, last_act=True):
     """
     (batch, height, width, channels) => (batch, heigth, width, out_ch)
     """
@@ -102,7 +102,8 @@ def perception_branch(x, n, n_classes, name='perception_branch'):
 
 def get_model(input_shape, n_classes, out_ch=256, n=18):
     img_input = Input(shape=input_shape, name='input_image')
-
+#     img_input = GaussianNoise(0.01)(img_input) # YJS added
+#     img_input = GaussianNoise(0.01)(img_input)
     backbone = feature_extractor(img_input, out_ch, n)
     att_pred, att_map = attention_branch(backbone, n, n_classes)
     per_pred = perception_branch(att_map, n, n_classes)
