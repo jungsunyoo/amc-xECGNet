@@ -3,7 +3,7 @@ from tensorflow.keras import backend as K
 from tensorflow.keras import activations, Model, Input
 # tensorflow.python.keras.layers.noise.GaussianNoise
 # from tensorflow.python.keras.layers.noise import GaussianNoise
-def basic_block(x, out_ch, kernel_size=10, stride=1, last_act=True):
+def basic_block(x, out_ch, kernel_size=3, stride=1, last_act=True):
     """
     (batch, height, width, channels) => (batch, heigth, width, out_ch)
     """
