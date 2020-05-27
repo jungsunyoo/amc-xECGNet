@@ -3,6 +3,56 @@ from tensorflow.keras import backend as K
 from tensorflow.keras import activations, Model, Input
 # tensorflow.python.keras.layers.noise.GaussianNoise
 # from tensorflow.python.keras.layers.noise import GaussianNoise
+# from tensorflow.keras import GaussianNoise
+from tensorflow.keras.layers import GaussianNoise
+def ieee_baseline_network(x):
+    bn_axis=2
+    ep = 1.001e-5
+    
+    # Block 1
+    out = layers.Conv1D(64, 3, 1, 'same')(x)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.Conv1D(64, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)
+    out = layers.Conv1D(128, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.Conv1D(128, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)
+    
+    # Block 2
+    out = layers.Conv1D(256, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.Conv1D(256, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.Conv1D(256, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)
+    
+    # Block 3
+    out = layers.Conv1D(512, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.Conv1D(512, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.Conv1D(512, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)    
+    
+    # Block 4
+    out = layers.Conv1D(512, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.Conv1D(256, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.Conv1D(128, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)    
+    
+    return out
+
+# pred_out = layers.GlobalAveragePooling1D(name=name+'_gap_1')(pred_out)
+# tf.keras.layers.MaxPooling1D(
+#     pool_size=2, strides=None, padding="valid", data_format="channels_last", **kwargs)
 def basic_block(x, out_ch, kernel_size=3, stride=1, last_act=True):
     """
     (batch, height, width, channels) => (batch, heigth, width, out_ch)
@@ -105,6 +155,20 @@ def get_model(input_shape, n_classes, out_ch=256, n=18):
 #     img_input = GaussianNoise(0.01)(img_input) # YJS added
 #     img_input = GaussianNoise(0.01)(img_input)
     backbone = feature_extractor(img_input, out_ch, n)
+#     backbone = ieee_baseline_network(img_input, n)
+    att_pred, att_map = attention_branch(backbone, n, n_classes)
+    per_pred = perception_branch(att_map, n, n_classes)
+
+    model = Model(inputs=img_input, outputs=[att_pred, per_pred])
+    return model
+
+
+def get_custom_model(input_shape, n_classes, out_ch=256, n=18):
+    img_input = Input(shape=input_shape, name='input_image')
+#     img_input = tensorflow.keras.layers.GaussianNoise(0.01)(img_input) # YJS added
+#     img_input = GaussianNoise(0.01)(img_input)
+#     backbone = feature_extractor(img_input, out_ch, n)
+    backbone = ieee_baseline_network(img_input)
     att_pred, att_map = attention_branch(backbone, n, n_classes)
     per_pred = perception_branch(att_map, n, n_classes)
 
