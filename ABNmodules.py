@@ -6,6 +6,14 @@ from tensorflow.keras import activations, Model, Input
 # from tensorflow.keras import GaussianNoise
 from tensorflow.keras.layers import GaussianNoise
 import tensorflow as tf
+# import tensorflow.contrib.eager as tfe
+import cProfile
+# tf.executing_ea
+from keras import initializers
+
+
+
+
 
 def global_average_pooling(x):
         return K.mean(x, axis = (2, 3))
@@ -27,30 +35,54 @@ def get_cam(args):
             cam += w * x[:,i,:]
     cam %= len(target_classes)
     return cam
+
+
+class CAM_dense(layers.Layer):
+    def __init__(self, units=9):
+        super(CAM_dense, self).__init__()
+        self.units = units
+        
+    def build(self, input_shape):
+        self.w = self.add_weight(shape=(input_shape[-1], self.units), 
+            initializer=initializers.get('glorot_uniform'), 
+            trainable=True)
+        self.b = self.add_weight(shape=(self.units,),
+            initializer = initializers.get('glorot_uniform'), 
+            trainable=True)
+        super(CAM_dense, self).build(input_shape)
+
+    def call(self, inputs):
+        out = tf.matmul(inputs, self.w) + self.b
+        return out
+    def weights(self):
+        weight = self.w
+        return weight
+
     
 def CAM_branch(x, n_classes, minimum_len, target_classes, name='cam_branch'): 
     # x is the output image from last convolutional layer
     
     out = layers.GlobalAveragePooling1D(name=name+'_avgpool_1')(x)
-    
-    out = layers.Dense(n_classes)(out)
-    out = layers.Softmax(out)
-    class_weights = layers.Layer.get_weights(out)
-    cam_out = layers.Lambda(get_cam)([x, class_weights, target_classes])
-    
+    out = CAM_dense(out)
+    w = out.w
+#     print(w)
+#     out = layers.Dense(n_classes)(out)
+    final_out = layers.Softmax(out)
 
-    
-    
+
+#     class_weights = final_out.get_weights()#layers.Layer.get_weights(final_out)
+    cam_out = tf.matmul(x, w)#layers.Lambda(lambda z: z[0] * z[1])([x,w])
+#     cam_out = layers.Lambda(get_cam)([x, w, 2])
+
     return final_out, cam_out
-#     out = layers.Lambda(global_average_pooling)(
-#     out = global_average_pooling(x)
-# att_out = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, att_out])
+
+#     att_out = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, att_out])
 
 
-#     out = layers.GlobalAveragePooling1D(name=name+'_avgpool_1')(out)
-#     out = layers.Dense(256, name=name+'_dense_1')(out)
-#     out = layers.Dense(n_classes, name=name+'_dense_2')(out)
-#     return layers.Softmax(name='perception_branch_output')(out)
+
+
+
+
 
 def ieee_baseline_network(x):
     bn_axis=2
@@ -212,15 +244,31 @@ def get_model(input_shape, n_classes, out_ch=256, n=18):
     return model
 
 
-def get_custom_model(input_shape, n_classes, minimum_len, target_classes, out_ch=256, n=18):
+def get_custom_model(input_shape, n_classes, minimum_len, target_classes, cam_map, out_ch=256, n=18):
     img_input = Input(shape=input_shape, name='input_image')
 #     img_input = tensorflow.keras.layers.GaussianNoise(0.01)(img_input) # YJS added
 #     img_input = GaussianNoise(0.01)(img_input)
 #     backbone = feature_extractor(img_input, out_ch, n)
     backbone = ieee_baseline_network(img_input)
     att_pred, att_map = attention_branch(backbone, n, n_classes)
-    cam_pred, cam_map = CAM_branch(backbone, n_classes, minimum_len, target_classes)
+#     cam_pred, cam_map = CAM_branch(backbone, n_classes, minimum_len, target_classes)
     per_pred = perception_branch(att_map, cam_map, n, n_classes)
-    model = Model(inputs=img_input, outputs=[att_pred, per_pred, cam_pred])
+    model = Model(inputs=img_input, outputs=[att_pred, per_pred, cam_pred], dynamic=True)
     return model
 
+def cam_model(input_shape, n_classes, minimum_len, out_ch=256, n=18):
+    img_input = Input(shape=input_shape, name='input_image')
+    backbone = ieee_baseline_network(img_input)
+    
+    x = layers.GlobalAveragePooling1D()(backbone)
+    x = layers.Dense(256, activation=None)(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Activation(activation='relu')(x)
+    x = layers.Dense(256, activation=None)(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Activation(activation='relu')(x)
+    x = layers.Dense(n_classes, name='dense_final')(x)
+    out = layers.Softmax(name='output')(x)        
+
+    model = Model(inputs=img_input, outputs=out)
+    return model
