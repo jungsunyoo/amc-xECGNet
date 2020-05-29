@@ -209,9 +209,9 @@ def attention_branch(x, n, n_classes, name='attention_branch'):
     return pred_out, att_out
 
 
-def perception_branch(x, cam_map, n, n_classes, name='perception_branch'):
-    cam_map = tf.image.resize(cam_map, x.shape)
-    filters = cam_map + x
+def perception_branch(x,n, n_classes, name='perception_branch'):
+#     cam_map = tf.image.resize(cam_map, x.shape)
+#     filters = cam_map + x
 #     cam_map = tf.image.resize(cam_map, filters._shape_tuple())
     
     
@@ -244,7 +244,7 @@ def get_model(input_shape, n_classes, out_ch=256, n=18):
     return model
 
 
-def get_custom_model(input_shape, n_classes, minimum_len, target_classes, cam_map, out_ch=256, n=18):
+def get_custom_model(input_shape, n_classes, minimum_len, target_classes, out_ch=256, n=18):
     img_input = Input(shape=input_shape, name='input_image')
 #     img_input = tensorflow.keras.layers.GaussianNoise(0.01)(img_input) # YJS added
 #     img_input = GaussianNoise(0.01)(img_input)
@@ -252,8 +252,8 @@ def get_custom_model(input_shape, n_classes, minimum_len, target_classes, cam_ma
     backbone = ieee_baseline_network(img_input)
     att_pred, att_map = attention_branch(backbone, n, n_classes)
 #     cam_pred, cam_map = CAM_branch(backbone, n_classes, minimum_len, target_classes)
-    per_pred = perception_branch(att_map, cam_map, n, n_classes)
-    model = Model(inputs=img_input, outputs=[att_pred, per_pred, cam_pred], dynamic=True)
+    per_pred = perception_branch(att_map, n, n_classes)
+    model = Model(inputs=img_input, outputs=[att_pred, per_pred])
     return model
 
 def cam_model(input_shape, n_classes, minimum_len, out_ch=256, n=18):
