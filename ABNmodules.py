@@ -10,7 +10,7 @@ import tensorflow as tf
 import cProfile
 # tf.executing_ea
 from keras import initializers
-
+from keras.backend import tf as ktf
 
 
 
@@ -85,6 +85,45 @@ def CAM_branch(x, n_classes, minimum_len, target_classes, name='cam_branch'):
 
 
 def ieee_baseline_network(x):
+    bn_axis=2
+    ep = 1.001e-5
+    
+    # Block 1
+    out = layers.Conv1D(64, 3, 1, 'same')(x)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.Conv1D(64, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)
+    out = layers.Conv1D(128, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.Conv1D(128, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)
+    
+    # Block 2
+    for _ in range(3):
+        out = layers.Conv1D(256, 3, 1, 'same')(out)
+        out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)
+    
+    # Block 3
+    for _ in range(3):
+        out = layers.Conv1D(512, 3, 1, 'same')(out)
+        out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)    
+    
+    # Block 4
+    out = layers.Conv1D(512, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.Conv1D(256, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.Conv1D(128, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)    
+    
+    return out
+
+def ieee_baseline_network_2(x):
     bn_axis=2
     ep = 1.001e-5
     
@@ -271,4 +310,25 @@ def cam_model(input_shape, n_classes, minimum_len, out_ch=256, n=18):
     out = layers.Softmax(name='output')(x)        
 
     model = Model(inputs=img_input, outputs=out)
+    return model
+
+
+def edit_model(input_shape, n_classes, minimum_len, out_ch=256, n=1): 
+    img_input = Input(shape=input_shape, name='input_image')
+    
+    
+    
+    backbone = ieee_baseline_network_2(img_input)
+    
+    
+    att_pred, att_map = attention_branch(backbone, n, n_classes)
+    
+    gradcam = Input(shape=(None,128), name='gradcam_image')
+#     gradcam = layers.Lambda(lambda image: ktf.image.resize_images(image, att_map.get_shape()))(gradcam)
+#     grad
+    editted = layers.Lambda(lambda z: (z[0] + z[1])/2)([att_map, gradcam])
+    
+#     cam_pred, cam_map = CAM_branch(backbone, n_classes, minimum_len, target_classes)
+    per_pred = perception_branch(att_map, n, n_classes)
+    model = Model(inputs=[img_input, gradcam], outputs=[att_pred, per_pred])
     return model
