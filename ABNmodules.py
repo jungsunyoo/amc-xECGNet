@@ -244,7 +244,7 @@ def attention_branch(x, n, n_classes, name='attention_branch'):
     att_out = layers.BatchNormalization(axis=bn_axis, epsilon=ep, name=name+'_att_bn_1')(att_out)
     att_out = layers.Activation(activations.sigmoid, name=name+'_att_sigmoid_1')(att_out)
     # att_out = (x * att_out) + x
-    att_out = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, att_out])
+    att_out = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, att_out]) # 다음에 돌릴땐 heatmap을 이거 전에 넣어주는것도 고려해볼만할듯?
     return pred_out, att_out
 
 
@@ -316,19 +316,17 @@ def cam_model(input_shape, n_classes, minimum_len, out_ch=256, n=18):
 def edit_model(input_shape, n_classes, minimum_len, out_ch=256, n=1): 
     img_input = Input(shape=input_shape, name='input_image')
     
-    
-    
     backbone = ieee_baseline_network_2(img_input)
-    
     
     att_pred, att_map = attention_branch(backbone, n, n_classes)
     
-    gradcam = Input(shape=(None,128), name='gradcam_image')
+    heatmap = Input(shape=(None,128), name='heatmap_image')
 #     gradcam = layers.Lambda(lambda image: ktf.image.resize_images(image, att_map.get_shape()))(gradcam)
 #     grad
-    editted = layers.Lambda(lambda z: (z[0] + z[1])/2)([att_map, gradcam])
-    
+#     editted = layers.Lambda(lambda z: (z[0] + z[1])/2)([att_map, gradcam])
+    editted = layers.concatenate([att_map, heatmap], axis=1) # [batch_size, 12, 128] 과 [batch_size, 1, 128]을 결합 -> 어떤 axis로할지 생각해보기
+    # 그냥 dot product (attention구할때처럼) 하는게 나을것같기도 하고?
 #     cam_pred, cam_map = CAM_branch(backbone, n_classes, minimum_len, target_classes)
-    per_pred = perception_branch(att_map, n, n_classes)
-    model = Model(inputs=[img_input, gradcam], outputs=[att_pred, per_pred])
+    per_pred = perception_branch(editted, n, n_classes)
+    model = Model(inputs=[img_input, heatmap], outputs=[att_pred, per_pred])
     return model
