@@ -260,7 +260,7 @@ def cam_model(input_shape, n_classes, minimum_len, out_ch=256, n=18):
     img_input = Input(shape=input_shape, name='input_image')
     backbone = ieee_baseline_network(img_input)
     
-    x = layers.GlobalAveragePooling1D()(backbone)
+#     x = layers.GlobalAveragePooling1D()(backbone)
 #     x = layers.Dense(256, activation=None)(x)
 #     x = layers.BatchNormalization()(x)
 #     x = layers.Activation(activation='relu')(x)

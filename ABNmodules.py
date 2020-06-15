@@ -252,6 +252,33 @@ def attention_branch(x, n, n_classes, heatmap, name='attention_branch'):
     att_out = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, att_out]) # 다음에 돌릴땐 heatmap을 이거 전에 넣어주는것도 고려해볼만할듯?
     return pred_out, att_out
 
+def attention_branch2(x, n, n_classes, name='attention_branch'): # heatmap 없는 원래 버전
+    """
+    (batch, height, width, channels) =>
+        (batch, n_classes), (batch, height, width, channels)
+    """
+#     bn_axis = 3 if K.image_data_format() == 'channels_last' else 1
+    bn_axis=2
+    ep = 1.001e-5
+
+    filters = x._shape_tuple()[-1]
+    out = bottleneck_block(x, filters*2, 1) # (b,h/2,w/2,f*2*4*2)
+    for _ in range(n-1):
+        out = bottleneck_block(out, filters*2, 1) # (b,h/2,w/2,f*2*4*2)
+
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep, name=name+'_bn_1')(out)
+    out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, activation=activations.relu ,name=name+'_conv_1')(out)
+
+    pred_out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, name=name+'_pred_conv_1')(out)
+    pred_out = layers.GlobalAveragePooling1D(name=name+'_gap_1')(pred_out)
+    pred_out = layers.Softmax(name='attention_branch_output')(pred_out)
+
+    att_out = layers.Conv1D(1, 1, 1, 'same', use_bias=False, name=name+'_att_conv_1')(out)
+    att_out = layers.BatchNormalization(axis=bn_axis, epsilon=ep, name=name+'_att_bn_1')(att_out)
+    att_out = layers.Activation(activations.sigmoid, name=name+'_att_sigmoid_1')(att_out)
+    # att_out = (x * att_out) + x
+    att_out = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, att_out])
+    return pred_out, att_out
 
 def perception_branch(x,n, n_classes, name='perception_branch'):
 #     cam_map = tf.image.resize(cam_map, x.shape)
@@ -294,7 +321,7 @@ def get_custom_model(input_shape, n_classes, minimum_len, target_classes, out_ch
 #     img_input = GaussianNoise(0.01)(img_input)
 #     backbone = feature_extractor(img_input, out_ch, n)
     backbone = ieee_baseline_network(img_input)
-    att_pred, att_map = attention_branch(backbone, n, n_classes)
+    att_pred, att_map = attention_branch2(backbone, n, n_classes)
 #     cam_pred, cam_map = CAM_branch(backbone, n_classes, minimum_len, target_classes)
     per_pred = perception_branch(att_map, n, n_classes)
     model = Model(inputs=img_input, outputs=[att_pred, per_pred])
