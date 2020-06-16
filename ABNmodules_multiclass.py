@@ -219,7 +219,7 @@ def feature_extractor(x, out_ch, n):
     return out
 
 
-def attention_branch(x, n, n_classes, heatmap, name='attention_branch'):
+def attention_branch_edit(x, n, n_classes, heatmap, name='attention_branch'):
     """
     (batch, height, width, channels) =>
         (batch, n_classes), (batch, height, width, channels)
@@ -238,20 +238,32 @@ def attention_branch(x, n, n_classes, heatmap, name='attention_branch'):
 
     pred_out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, name=name+'_pred_conv_1')(out)
     pred_out = layers.GlobalAveragePooling1D(name=name+'_gap_1')(pred_out)
-#     pred_out = layers.Softmax(name='attention_branch_output')(pred_out)
-    pred_out = layers.Activation(activations.sigmoid, name='attention_branch_output')(pred_out)
-    
+    pred_out = layers.Softmax(name='attention_branch_output')(pred_out)
+
     att_out = layers.Conv1D(1, 1, 1, 'same', use_bias=False, name=name+'_att_conv_1')(out)
     att_out = layers.BatchNormalization(axis=bn_axis, epsilon=ep, name=name+'_att_bn_1')(att_out)
-    att_out = layers.Activation(activations.sigmoid, name=name+'_att_sigmoid_1')(att_out)
+    att_out = layers.Activation(activations.sigmoid, name=name+'_att_sigmoid_1')(att_out)  # output shape = (batch, 12, 1)
+    
+    # x shape = (batch, 12, 128)
+    
+    
+#     print(att_out.shape)
+#     print(heatmap.shape)
     # att_out = (x * att_out) + x
     
     # heatmap 여기에서 추가
+#     editted = layers.concatenate([att_out, heatmap], axis=1)
+    editted = layers.Lambda(lambda z: (z[0] + z[1])/2)([att_out, heatmap])
+    edit_map = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, editted])
 
-    att_out = layers.Lambda(lambda z: (z[0] + z[1])/2)([att_out, heatmap])
+#     att_out = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, att_out]) # 다음에 돌릴땐 heatmap을 이거 전에 넣어주는것도 고려해볼만할듯?
+#     heat_out = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, heatmap])
     
-    att_out = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, att_out]) # 다음에 돌릴땐 heatmap을 이거 전에 넣어주는것도 고려해볼만할듯?
-    return pred_out, att_out
+#     edit_map = layers.concatenate([att_out, heat_out], axis=2) # (batch, 12, 256)
+    
+    
+    return pred_out, edit_map
+
 
 def attention_branch2(x, n, n_classes, name='attention_branch'): # heatmap 없는 원래 버전
     """
@@ -352,17 +364,9 @@ def cam_model(input_shape, n_classes, minimum_len, out_ch=256, n=18):
 def edit_model(input_shape, n_classes, minimum_len, out_ch=256, n=1): 
     img_input = Input(shape=input_shape, name='input_image')
     
-    backbone = ieee_baseline_network_2(img_input)
+    backbone = ieee_baseline_network(img_input)
     heatmap = Input(shape=(None,1), name='heatmap_image')    
-    att_pred, editted_map = attention_branch(backbone, n, n_classes, heatmap)
-    
-
-#     gradcam = layers.Lambda(lambda image: ktf.image.resize_images(image, att_map.get_shape()))(gradcam)
-#     grad
-#     editted = layers.Lambda(lambda z: (z[0] + z[1])/2)([att_map, gradcam])
-#     editted = layers.concatenate([att_map, heatmap], axis=1) # [batch_size, 12, 128] 과 [batch_size, 1, 128]을 결합 -> 어떤 axis로할지 생각해보기
-    # 그냥 dot product (attention구할때처럼) 하는게 나을것같기도 하고?
-#     cam_pred, cam_map = CAM_branch(backbone, n_classes, minimum_len, target_classes)
-    per_pred = perception_branch(editted_map, n, n_classes)
+    att_pred, edit_map = attention_branch_edit(backbone, n, n_classes, heatmap)
+    per_pred = perception_branch(edit_map, n, n_classes)
     model = Model(inputs=[img_input, heatmap], outputs=[att_pred, per_pred])
     return model
