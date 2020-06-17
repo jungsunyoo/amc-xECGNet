@@ -238,7 +238,8 @@ def attention_branch_edit(x, n, n_classes, heatmap, name='attention_branch'):
 
     pred_out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, name=name+'_pred_conv_1')(out)
     pred_out = layers.GlobalAveragePooling1D(name=name+'_gap_1')(pred_out)
-    pred_out = layers.Softmax(name='attention_branch_output')(pred_out)
+#     pred_out = layers.Softmax(name='attention_branch_output')(pred_out)
+    pred_out = layers.Activation(activations.sigmoid, name='attention_branch_output')(pred_out)
 
     att_out = layers.Conv1D(1, 1, 1, 'same', use_bias=False, name=name+'_att_conv_1')(out)
     att_out = layers.BatchNormalization(axis=bn_axis, epsilon=ep, name=name+'_att_bn_1')(att_out)
@@ -253,13 +254,13 @@ def attention_branch_edit(x, n, n_classes, heatmap, name='attention_branch'):
     
     # heatmap 여기에서 추가
 #     editted = layers.concatenate([att_out, heatmap], axis=1)
-    editted = layers.Lambda(lambda z: (z[0] + z[1])/2)([att_out, heatmap])
-    edit_map = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, editted])
+#     editted = layers.Lambda(lambda z: (z[0] + z[1])/2)([att_out, heatmap])
+#     edit_map = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, editted])
 
-#     att_out = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, att_out]) # 다음에 돌릴땐 heatmap을 이거 전에 넣어주는것도 고려해볼만할듯?
-#     heat_out = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, heatmap])
+    att_out = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, att_out]) # 다음에 돌릴땐 heatmap을 이거 전에 넣어주는것도 고려해볼만할듯?
+    heat_out = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, heatmap])
     
-#     edit_map = layers.concatenate([att_out, heat_out], axis=2) # (batch, 12, 256)
+    edit_map = layers.concatenate([att_out, heat_out], axis=2) # (batch, 12, 256)
     
     
     return pred_out, edit_map
