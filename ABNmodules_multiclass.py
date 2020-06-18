@@ -313,7 +313,7 @@ def perception_branch(x,n, n_classes, name='perception_branch'):
         out = bottleneck_block(out, filters*2, 1)
 
     out = layers.GlobalAveragePooling1D(name=name+'_avgpool_1')(out)
-    out = layers.Dense(256, name=name+'_dense_1')(out)
+    out = layers.Dense(512, name=name+'_dense_1')(out)
     out = layers.Dense(n_classes, name=name+'_dense_2')(out)
     return layers.Activation(activations.sigmoid, name='perception_branch_output')(out)
 #     return layers.Softmax(name='perception_branch_output')(out)
