@@ -318,6 +318,27 @@ def perception_branch(x,n, n_classes, name='perception_branch'):
     return layers.Activation(activations.sigmoid, name='perception_branch_output')(out)
 #     return layers.Softmax(name='perception_branch_output')(out)
 
+def perception_branch2(x,n, n_classes, name='perception_branch'):
+#     cam_map = tf.image.resize(cam_map, x.shape)
+#     filters = cam_map + x
+#     cam_map = tf.image.resize(cam_map, filters._shape_tuple())
+    
+    
+    filters = x._shape_tuple()[-1]
+#     filters_cam = cam_map.__shape_tuple
+#     cam_map.reshape(
+    
+    
+    
+    out = bottleneck_block(x, filters*2, 1)
+    for _ in range(n-1):
+        out = bottleneck_block(out, filters*2, 1)
+
+    out = layers.GlobalAveragePooling1D(name=name+'_avgpool_1')(out)
+    out = layers.Dense(512, name=name+'_dense_1')(out)
+    out = layers.Dense(n_classes, name=name+'_dense_2')(out)
+    return layers.Activation(activations.sigmoid, name='perception_branch_output')(out)
+#     return layers.Softmax(name='perception_branch_output')(out)
 
 def get_model(input_shape, n_classes, out_ch=256, n=18):
     img_input = Input(shape=input_shape, name='input_image')
@@ -368,6 +389,6 @@ def edit_model(input_shape, n_classes, minimum_len, out_ch=256, n=1):
     backbone = ieee_baseline_network(img_input)
     heatmap = Input(shape=(None,1), name='heatmap_image')    
     att_pred, edit_map = attention_branch_edit(backbone, n, n_classes, heatmap)
-    per_pred = perception_branch(edit_map, n, n_classes)
+    per_pred = perception_branch2(edit_map, n, n_classes)
     model = Model(inputs=[img_input, heatmap], outputs=[att_pred, per_pred])
     return model
