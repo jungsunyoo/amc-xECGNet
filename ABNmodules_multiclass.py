@@ -340,6 +340,28 @@ def perception_branch2(x,n, n_classes, name='perception_branch'):
     return layers.Activation(activations.sigmoid, name='perception_branch_output')(out)
 #     return layers.Softmax(name='perception_branch_output')(out)
 
+def perception_branch3(x,n, n_classes, name='perception_branch'):
+#     cam_map = tf.image.resize(cam_map, x.shape)
+#     filters = cam_map + x
+#     cam_map = tf.image.resize(cam_map, filters._shape_tuple())
+    
+    
+    filters = x._shape_tuple()[-1]
+#     filters_cam = cam_map.__shape_tuple
+#     cam_map.reshape(
+    
+    
+    
+    out = bottleneck_block(x, filters*2, 1)
+    for _ in range(n-1):
+        out = bottleneck_block(out, filters*2, 1)
+
+    out = layers.GlobalAveragePooling1D(name=name+'_avgpool_1')(out)
+#     out = layers.Dense(512, name=name+'_dense_1')(out)
+    out = layers.Dense(n_classes, name=name+'_dense_2')(out)
+    return layers.Activation(activations.sigmoid, name='perception_branch_output')(out)
+#     return layers.Softmax(name='perception_branch_output')(out)
+
 def get_model(input_shape, n_classes, out_ch=256, n=18):
     img_input = Input(shape=input_shape, name='input_image')
 #     img_input = GaussianNoise(0.01)(img_input) # YJS added
@@ -349,6 +371,19 @@ def get_model(input_shape, n_classes, out_ch=256, n=18):
     att_pred, att_map = attention_branch(backbone, n, n_classes)
     per_pred = perception_branch(att_map, n, n_classes)
 
+    model = Model(inputs=img_input, outputs=[att_pred, per_pred])
+    return model
+
+
+def get_ABN_backbone(input_shape, n_classes, minimum_len, target_classes, out_ch=256, n=18):
+    img_input = Input(shape=input_shape, name='input_image')
+#     img_input = tensorflow.keras.layers.GaussianNoise(0.01)(img_input) # YJS added
+#     img_input = GaussianNoise(0.01)(img_input)
+#     backbone = feature_extractor(img_input, out_ch, n)
+    backbone = ieee_baseline_network(img_input)
+    att_pred, att_map = attention_branch2(backbone, n, n_classes)
+#     cam_pred, cam_map = CAM_branch(backbone, n_classes, minimum_len, target_classes)
+    per_pred = perception_branch3(att_map, n, n_classes)
     model = Model(inputs=img_input, outputs=[att_pred, per_pred])
     return model
 
