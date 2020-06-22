@@ -187,7 +187,7 @@ def perception_branch_primitive(x,n, n_classes, name='perception_branch'):
     return layers.Activation(activations.sigmoid, name='perception_branch_output')(out)
 
 
-def primitive_ABN(input_shape, n_classes, minimum_len, target_classes, out_ch=256, n=18):
+def primitive_ABN(input_shape, n_classes, minimum_len, out_ch=256, n=1):
     # use for training ABN for ABN (extract CAM from this model later)
     img_input = Input(shape=input_shape, name='input_image')
     backbone = ieee_baseline_network(img_input)
@@ -196,7 +196,7 @@ def primitive_ABN(input_shape, n_classes, minimum_len, target_classes, out_ch=25
     model = Model(inputs=img_input, outputs=[att_pred, per_pred])
     return model
 
-def ABN_model(input_shape, n_classes, minimum_len, target_classes, out_ch=256, n=18):
+def ABN_model(input_shape, n_classes, minimum_len, out_ch=256, n=1):
     img_input = Input(shape=input_shape, name='input_image')
     backbone = ieee_baseline_network(img_input)
     att_pred, att_map = attention_branch(backbone, n, n_classes)
