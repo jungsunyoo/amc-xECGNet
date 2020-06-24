@@ -2,11 +2,13 @@ from tensorflow.keras import layers
 from tensorflow.keras import backend as K
 from tensorflow.keras import activations, Model, Input
 from tensorflow.keras.layers import GaussianNoise
+from tensorflow.keras.losses import binary_crossentropy
+from tensorflow.keras.backend import l2_normalize
 import tensorflow as tf
 import cProfile
 from keras import initializers
 from keras.backend import tf as ktf
-
+import numpy as np
 def ieee_baseline_network(x):
     bn_axis=2
     ep = 1.001e-5
@@ -187,7 +189,7 @@ def perception_branch_primitive(x,n, n_classes, name='perception_branch'):
     return layers.Activation(activations.sigmoid, name='perception_branch_output')(out)
 
 
-def primitive_ABN(input_shape, n_classes, minimum_len, out_ch=256, n=1):
+def primitive_ABN(input_shape, n_classes, minimum_len, n,out_ch=256):
     # use for training ABN for ABN (extract CAM from this model later)
     img_input = Input(shape=input_shape, name='input_image')
     backbone = ieee_baseline_network(img_input)
@@ -196,7 +198,7 @@ def primitive_ABN(input_shape, n_classes, minimum_len, out_ch=256, n=1):
     model = Model(inputs=img_input, outputs=[att_pred, per_pred])
     return model
 
-def ABN_model(input_shape, n_classes, minimum_len, out_ch=256, n=1):
+def ABN_model(input_shape, n_classes, minimum_len, n, out_ch=256):
     img_input = Input(shape=input_shape, name='input_image')
     backbone = ieee_baseline_network(img_input)
     att_pred, att_map = attention_branch(backbone, n, n_classes)
@@ -204,7 +206,7 @@ def ABN_model(input_shape, n_classes, minimum_len, out_ch=256, n=1):
     model = Model(inputs=img_input, outputs=[att_pred, per_pred])
     return model
 
-def edit_ABN_model(input_shape, n_classes, minimum_len, out_ch=256, n=1): 
+def edit_ABN_model(input_shape, n_classes, minimum_len, n,out_ch=256): 
     img_input = Input(shape=input_shape, name='input_image')
     
     backbone = ieee_baseline_network(img_input)
@@ -213,6 +215,33 @@ def edit_ABN_model(input_shape, n_classes, minimum_len, out_ch=256, n=1):
     per_pred = perception_branch(edit_map, n, n_classes)
     model = Model(inputs=[img_input, heatmap], outputs=[att_pred, per_pred])
     return model
+
+
+def custom_loss(heatmap, att_map):
+    def loss(y_true, y_pred):
+        L_abn = binary_crossentropy(y_true, y_pred)
+#         print(l2_normalize((heatmap - att_map), axis=1).shape)
+#         L_edit = L_abn + np.linalg.norm((heatmap-att_map), axis=1, ord=2)*0.1
+        mapp = tf.math.reduce_sum(tf.math.abs(heatmap-att_map), axis=1)
+#         mapp = tf.math.l2_normalize((heatmap-att_map), axis=1)
+#         L_edit = L_abn + tf.math.l2_normalize(mapp, axis=1)*0.0001#l2_normalize((heatmap - att_map), axis=(1,2))*0.1
+        L_edit = L_abn + tf.math.reduce_sum(mapp, axis=1)*0.0001#l2_normalize((heatmap - att_map), axis=(1,2))*0.1
+        return L_edit
+    return loss
+
+def edit_ABN_model_loss(input_shape, n_classes, minimum_len, n, out_ch=256): # implement as described in ABN edit paper 
+    img_input = Input(shape=input_shape, name='input_image') 
+    backbone = ieee_baseline_network(img_input)
+    heatmap = Input(shape=(None,1), name='heatmap_image')    
+    att_pred, att_map = attention_branch(backbone, n, n_classes)
+    per_pred = perception_branch(att_map, n, n_classes)
+    model = Model(inputs=[img_input, heatmap], outputs=[att_pred, per_pred])
+    
+    customLoss = custom_loss(heatmap, att_map)
+
+    return model, customLoss
+
+
 
 # def cam_primitive_model(input_shape, n_classes, minimum_len, out_ch=256, n=18): # don't use as backbone anymore (bad performance)
 #     img_input = Input(shape=input_shape, name='input_image')
