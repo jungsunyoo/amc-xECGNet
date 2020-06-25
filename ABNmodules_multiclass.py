@@ -217,27 +217,34 @@ def edit_ABN_model(input_shape, n_classes, minimum_len, n,out_ch=256):
     return model
 
 
-def custom_loss(heatmap, att_map):
+
+
+
+def custom_loss(heatmap, att_map, gamma): # gamma = 0.0001
     def loss(y_true, y_pred):
         L_abn = binary_crossentropy(y_true, y_pred)
-#         print(l2_normalize((heatmap - att_map), axis=1).shape)
-#         L_edit = L_abn + np.linalg.norm((heatmap-att_map), axis=1, ord=2)*0.1
-        mapp = tf.math.reduce_sum(tf.math.abs(heatmap-att_map), axis=1)
-#         mapp = tf.math.l2_normalize((heatmap-att_map), axis=1)
-#         L_edit = L_abn + tf.math.l2_normalize(mapp, axis=1)*0.0001#l2_normalize((heatmap - att_map), axis=(1,2))*0.1
-        L_edit = L_abn + tf.math.reduce_sum(mapp, axis=1)*0.0001#l2_normalize((heatmap - att_map), axis=(1,2))*0.1
+
+#         # L1 norm
+#         mapp = tf.math.reduce_sum(tf.math.abs(heatmap-att_map), axis=1)
+#         L_edit = L_abn + tf.math.reduce_sum(mapp, axis=1)*gamma
+
+        # L2 norm
+        mapp = tf.math.reduce_sum(tf.math.square(heatmap-att_map), axis=1)
+        mapp = tf.math.sqrt(tf.math.reduce_sum(mapp, axis=1))
+        L_edit = L_abn + mapp*gamma
+
         return L_edit
     return loss
 
-def edit_ABN_model_loss(input_shape, n_classes, minimum_len, n, out_ch=256): # implement as described in ABN edit paper 
+def edit_ABN_model_loss(input_shape, n_classes, minimum_len, n, gamma, out_ch=256): # implement as described in ABN edit paper 
     img_input = Input(shape=input_shape, name='input_image') 
+    heatmap = Input(shape=(None,1), name='heatmap_image')   
     backbone = ieee_baseline_network(img_input)
-    heatmap = Input(shape=(None,1), name='heatmap_image')    
     att_pred, att_map = attention_branch(backbone, n, n_classes)
     per_pred = perception_branch(att_map, n, n_classes)
     model = Model(inputs=[img_input, heatmap], outputs=[att_pred, per_pred])
     
-    customLoss = custom_loss(heatmap, att_map)
+    customLoss = custom_loss(heatmap, att_map, gamma)
 
     return model, customLoss
 
