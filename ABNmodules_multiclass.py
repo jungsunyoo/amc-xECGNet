@@ -224,14 +224,14 @@ def custom_loss(heatmap, att_map, gamma): # gamma = 0.0001
     def loss(y_true, y_pred):
         L_abn = binary_crossentropy(y_true, y_pred)
 
-#         # L1 norm
-#         mapp = tf.math.reduce_sum(tf.math.abs(heatmap-att_map), axis=1)
-#         L_edit = L_abn + tf.math.reduce_sum(mapp, axis=1)*gamma
+        # L1 norm
+        mapp = tf.math.reduce_sum(tf.math.abs(heatmap-att_map), axis=1)
+        L_edit = L_abn + tf.math.reduce_sum(mapp, axis=1)*gamma
 
-        # L2 norm
-        mapp = tf.math.reduce_sum(tf.math.square(heatmap-att_map), axis=1)
-        mapp = tf.math.sqrt(tf.math.reduce_sum(mapp, axis=1))
-        L_edit = L_abn + mapp*gamma
+#         # L2 norm
+#         mapp = tf.math.reduce_sum(tf.math.square(heatmap-att_map), axis=1)
+#         mapp = tf.math.sqrt(tf.math.reduce_sum(mapp, axis=1))
+#         L_edit = L_abn + mapp*gamma
 
         return L_edit
     return loss
