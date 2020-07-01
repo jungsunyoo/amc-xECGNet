@@ -16,50 +16,56 @@ def ieee_baseline_network(x):
     # Block 1
     out = layers.Conv1D(64, 3, 1, 'same')(x)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.LeakyReLU()(out)
-#     out = layers.Conv1D(64, 3, 1, 'same')(out)
-#     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-#     out = layers.LeakyReLU()(out)
     out = layers.Dropout(0.2)(out)  
-    out = layers.MaxPooling1D(pool_size=2, strides=1, padding='same')(out) # 2880 -> 960
+#     out = layers.LeakyReLU()(out)
+    out = layers.Conv1D(64, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+#     out = layers.LeakyReLU()(out)
+#     out = layers.Dropout(0.2)(out)  
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out) # 2880 -> 960
     
     out = layers.Conv1D(128, 3, 1, 'same')(out)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.LeakyReLU()(out)
-#     out = layers.Conv1D(128, 3, 1, 'same')(out)
-#     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-#     out = layers.LeakyReLU()(out)
     out = layers.Dropout(0.2)(out)  
-    out = layers.MaxPooling1D(pool_size=2, strides=1, padding='same')(out) # 960 -> 320
+#     out = layers.LeakyReLU()(out)
+    out = layers.Conv1D(128, 3, 1, 'same')(out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+#     out = layers.LeakyReLU()(out)
+#     out = layers.Dropout(0.2)(out)  
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out) # 960 -> 320
     
     # Block 2
-    for _ in range(1):
+    for _ in range(3):
         out = layers.Conv1D(256, 3, 1, 'same')(out)
         out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-        out = layers.LeakyReLU()(out)
-    out = layers.Dropout(0.2)(out)  
-    out = layers.MaxPooling1D(pool_size=2, strides=1, padding='same')(out) # 320 -> 107
+#         out = layers.Dropout(0.2)(out)  
+#         out = layers.LeakyReLU()(out)
+#     out = layers.Dropout(0.2)(out)  
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out) # 320 -> 107
     
     # Block 3
-    for _ in range(1):
+    for _ in range(3):
         out = layers.Conv1D(512, 3, 1, 'same')(out)
         out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-        out = layers.LeakyReLU()(out)
-    out = layers.Dropout(0.2)(out)  
-    out = layers.MaxPooling1D(pool_size=2, strides=1, padding='same')(out)      # 107 -> 36
+#         out = layers.Dropout(0.2)(out)  
+#         out = layers.LeakyReLU()(out)
+#     out = layers.Dropout(0.2)(out)  
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)      # 107 -> 36
     
     # Block 4
     out = layers.Conv1D(512, 3, 1, 'same')(out)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.LeakyReLU()(out)
+    out = layers.Dropout(0.2)(out)  
+#     out = layers.LeakyReLU()(out)
     out = layers.Conv1D(256, 3, 1, 'same')(out)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.LeakyReLU()(out)
+    out = layers.Dropout(0.2)(out)  
+#     out = layers.LeakyReLU()(out)
     out = layers.Conv1D(128, 3, 1, 'same')(out)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.LeakyReLU()(out)
-    out = layers.Dropout(0.2)(out)  
-    out = layers.MaxPooling1D(pool_size=2, strides=1, padding='same')(out)    # 36 -> 12
+#     out = layers.LeakyReLU()(out)
+#     out = layers.Dropout(0.2)(out)  
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)    # 36 -> 12
 #     out = layers.LeakyReLU()(out)
       
     return out
@@ -74,10 +80,10 @@ def basic_block(x, out_ch, kernel_size=3, stride=1, last_act=True):
 
     out = layers.Conv1D(out_ch, kernel_size, stride, 'same', use_bias=False)(x)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.LeakyReLU()(out)
+#     out = layers.LeakyReLU()(out)
 
     if last_act is True:
-        return layers.LeakyReLU()(out)  #layers.Activation(activations.relu)(out)
+        return layers.Activation(activations.relu)(out)
     else:
         return out
 
@@ -95,7 +101,7 @@ def bottleneck_block(x, out_ch, stride=1):
         ep = 1.001e-5
         shortcut = layers.Conv1D(out_ch, 1, stride, 'same', use_bias=False)(x)
         shortcut = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(shortcut)
-        shortcut = layers.LeakyReLU()(shortcut)
+#         shortcut = layers.LeakyReLU()(shortcut)
     else:
         shortcut = x
 
@@ -140,6 +146,7 @@ def attention_branch(x, n, n_classes, name='attention_branch'): # heatmap 없는
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep, name=name+'_bn_1')(out)
     out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, activation=activations.relu ,name=name+'_conv_1')(out)
 
+    
     pred_out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, name=name+'_pred_conv_1')(out)
     pred_out = layers.GlobalAveragePooling1D(name=name+'_gap_1')(pred_out)
     pred_out = layers.Activation(activations.sigmoid, name='attention_branch_output')(pred_out)
