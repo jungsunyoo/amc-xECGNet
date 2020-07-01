@@ -14,38 +14,39 @@ def ieee_baseline_network(x):
     ep = 1.001e-5
     
     # Block 1
-    out = layers.Conv1D(64, 3, 1, 'same', use_bias=False)(x)
+    out = layers.Conv1D(64, 3, 1, 'same')(x)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.Conv1D(64, 3, 1, 'same', use_bias=False)(out)
+    out = layers.Conv1D(64, 3, 1, 'same')(out)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out) # 2880 -> 960?
-    out = layers.Conv1D(128, 3, 1, 'same', use_bias=False)(out)
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out) # 2880 -> 960
+    out = layers.Conv1D(128, 3, 1, 'same')(out)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.Conv1D(128, 3, 1, 'same', use_bias=False)(out)
+    out = layers.Conv1D(128, 3, 1, 'same')(out)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out) # 960 -> 320?
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out) # 960 -> 320
     
     # Block 2
     for _ in range(3):
-        out = layers.Conv1D(256, 3, 1, 'same', use_bias=False)(out)
+        out = layers.Conv1D(256, 3, 1, 'same')(out)
         out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out) # 320 -> 107?
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out) # 320 -> 107
     
     # Block 3
     for _ in range(3):
-        out = layers.Conv1D(512, 3, 1, 'same', use_bias=False)(out)
+        out = layers.Conv1D(512, 3, 1, 'same')(out)
         out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)    # 107 -> 36? 
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)      # 107 -> 36
     
     # Block 4
-    out = layers.Conv1D(512, 3, 1, 'same', use_bias=False)(out)
+    out = layers.Conv1D(512, 3, 1, 'same')(out)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.Conv1D(256, 3, 1, 'same', use_bias=False)(out)
+    out = layers.Conv1D(256, 3, 1, 'same')(out)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.Conv1D(128, 3, 1, 'same', use_bias=False)(out)
+    out = layers.Conv1D(128, 3, 1, 'same')(out)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)    # 36 -> 12?
-#     out = layers.Activation(activations.leakyrelu)(out)
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)    # 36 -> 12
+    out = layers.LeakyReLU()(out)
+    out = layers.Dropout(0.2)(out)    
     return out
 
 def basic_block(x, out_ch, kernel_size=3, stride=1, last_act=True):
@@ -85,7 +86,9 @@ def bottleneck_block(x, out_ch, stride=1):
     out = basic_block(out, out_ch//4, 3, stride)
     out = basic_block(out, out_ch, 1, last_act=False)
     out = layers.Add()([out, shortcut])
-    return layers.Activation(activations.relu)(out) #     out = layers.Activation(activations.leakyrelu)(out)
+    out = layers.LeakyReLU()(out)
+    return layers.Dropout(0.2)(out)    
+#     return layers.Activation(activations.relu)(out)
 
 
 def feature_extractor(x, out_ch, n):
@@ -200,7 +203,7 @@ def primitive_ABN(input_shape, n_classes, minimum_len, n,out_ch=256):
 
 def ABN_model(input_shape, n_classes, minimum_len, n, out_ch=256):
     img_input = Input(shape=input_shape, name='input_image')
-    backbone = ieee_baseline_network(img_input) # output length = 36? 
+    backbone = ieee_baseline_network(img_input)
     att_pred, att_map = attention_branch(backbone, n, n_classes)
     per_pred = perception_branch(att_map, n, n_classes)
     model = Model(inputs=img_input, outputs=[att_pred, per_pred])
@@ -215,6 +218,10 @@ def edit_ABN_model(input_shape, n_classes, minimum_len, n,out_ch=256):
     per_pred = perception_branch(edit_map, n, n_classes)
     model = Model(inputs=[img_input, heatmap], outputs=[att_pred, per_pred])
     return model
+
+
+
+
 
 def custom_loss(heatmap, att_map, gamma): # gamma = 0.0001
     def loss(y_true, y_pred):
