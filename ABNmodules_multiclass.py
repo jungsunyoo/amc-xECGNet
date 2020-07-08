@@ -226,14 +226,14 @@ def perception_branch_endtoend(x,n, n_classes, name='perception_branch'):
     
     # 논문 참고
     
-    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, activation=activations.relu ,name=name+'_conv_1')(out)
-    loss_out = layers.BatchNormalization(axis=bn_axis, epsilon=ep, name=name+'_per_loss_bn_1')(out)
+    loss_out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    loss_out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, activation=activations.relu ,name=name+'_conv_1')(loss_out)
+    loss_out = layers.BatchNormalization(axis=bn_axis, epsilon=ep, name=name+'_per_loss_bn_1')(loss_out)
     loss_out = layers.Activation(activations.sigmoid, name=name+'_per_loss_sigmoid_1')(loss_out)
     
     
     out = layers.GlobalAveragePooling1D(name=name+'_avgpool_1')(out) # 256
-#     out = layers.Dense(512, name=name+'_dense_1')(out)
+    out = layers.Dense(512, name=name+'_dense_1')(out)
     out = layers.Dense(n_classes, name=name+'_dense_2')(out)
     return layers.Activation(activations.sigmoid, name='perception_branch_output')(out), loss_out # 크기는 여전히 12?
 
