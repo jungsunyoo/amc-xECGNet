@@ -126,9 +126,36 @@ def attention_branch(x, n, n_classes, name='attention_branch'): # heatmap 없는
     
     att_out = layers.Conv1D(1, 1, 1, 'same', use_bias=False, name=name+'_att_conv_1')(out)
     att_out = layers.BatchNormalization(axis=bn_axis, epsilon=ep, name=name+'_att_bn_1')(att_out)
-    att_out = layers.Activation(activations.sigmoid, name=name+'_att_sigmoid_1')(att_out)
-    att_out = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, att_out])
+    att_out_ = layers.Activation(activations.sigmoid, name=name+'_att_sigmoid_1')(att_out)
+    att_out = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, att_out_]) # (batch, 12, 128)
     return pred_out, att_out
+
+def attention_branch2(x, n, n_classes, name='attention_branch'): # heatmap 없는 원래 버전
+    """
+    (batch, height, width, channels) =>
+        (batch, n_classes), (batch, height, width, channels)
+    """
+#     bn_axis = 3 if K.image_data_format() == 'channels_last' else 1
+    bn_axis=2
+    ep = 1.001e-5
+
+    filters = x._shape_tuple()[-1]
+    out = bottleneck_block(x, filters*2, 1) # (b,h/2,w/2,f*2*4*2)
+    for _ in range(n-1):
+        out = bottleneck_block(out, filters*2, 1) # (b,h/2,w/2,f*2*4*2)
+
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep, name=name+'_bn_1')(out)
+    out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, activation=activations.relu ,name=name+'_conv_1')(out)
+
+    pred_out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, name=name+'_pred_conv_1')(out)
+    pred_out = layers.GlobalAveragePooling1D(name=name+'_gap_1')(pred_out)
+    pred_out = layers.Activation(activations.sigmoid, name='attention_branch_output')(pred_out)
+    
+    att_out = layers.Conv1D(1, 1, 1, 'same', use_bias=False, name=name+'_att_conv_1')(out)
+    att_out = layers.BatchNormalization(axis=bn_axis, epsilon=ep, name=name+'_att_bn_1')(att_out)
+    att_out_ = layers.Activation(activations.sigmoid, name=name+'_att_sigmoid_1')(att_out)
+    att_out = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, att_out_]) # (batch, 12, 128)
+    return pred_out, att_out, att_out_
 
 def attention_branch_edit(x, n, n_classes, heatmap, name='attention_branch'):
     """
@@ -189,7 +216,9 @@ def perception_branch_primitive(x,n, n_classes, name='perception_branch'):
     return layers.Activation(activations.sigmoid, name='perception_branch_output')(out)
 
 def perception_branch_endtoend(x,n, n_classes, name='perception_branch'):
-
+    # x = (batch, 12, 128)
+    bn_axis=2
+    ep = 1.001e-5
     filters = x._shape_tuple()[-1]
     out = bottleneck_block(x, filters*2, 1)
     for _ in range(n-1):
@@ -199,15 +228,14 @@ def perception_branch_endtoend(x,n, n_classes, name='perception_branch'):
     
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
     out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, activation=activations.relu ,name=name+'_conv_1')(out)
-    
-#     loss_out = layers.Conv1D(1, 1, 1, 'same', use_bias=False, name=name+'_per_loss_conv_1')(out)
     loss_out = layers.BatchNormalization(axis=bn_axis, epsilon=ep, name=name+'_per_loss_bn_1')(out)
     loss_out = layers.Activation(activations.sigmoid, name=name+'_per_loss_sigmoid_1')(loss_out)
+    
     
     out = layers.GlobalAveragePooling1D(name=name+'_avgpool_1')(out) # 256
 #     out = layers.Dense(512, name=name+'_dense_1')(out)
     out = layers.Dense(n_classes, name=name+'_dense_2')(out)
-    return layers.Activation(activations.sigmoid, name='perception_branch_output')(out), loss_out
+    return layers.Activation(activations.sigmoid, name='perception_branch_output')(out), loss_out # 크기는 여전히 12?
 
 def primitive_ABN(input_shape, n_classes, minimum_len, n,out_ch=256):
     # use for training ABN for ABN (extract CAM from this model later)
@@ -244,6 +272,9 @@ def custom_loss(heatmap, att_map, gamma): # gamma = 0.0001
     def loss(y_true, y_pred):
         L_abn = binary_crossentropy(y_true, y_pred)
 
+        # att_map dim: (batch, 12, 128)
+        # heatmap dim: (batch, 12, 1)
+        
 #         # L1 norm
 #         mapp = tf.math.reduce_sum(tf.math.abs(heatmap-att_map), axis=1)
 #         L_edit = L_abn + tf.math.reduce_sum(mapp, axis=1)*gamma
@@ -256,19 +287,13 @@ def custom_loss(heatmap, att_map, gamma): # gamma = 0.0001
         return L_edit
     return loss
 
-def custom_loss_endtoend(heatmap, att_map, gamma): # gamma = 0.0001
+def custom_loss_endtoend(per_map, att_map, gamma, n_classes, batch_size): # gamma = 0.0001
     def loss(y_true, y_pred):
         L_abn = binary_crossentropy(y_true, y_pred)
-        class_index=[]
-        per_cam = np.zeros((1,12))
-        [class_index.append(j) for j in range(len(y_true)) if y_true[j]==1]
-        
-        for label in class_index:
-            per_cam += heatmap[:,label]
-        per_cam %= len(class_index)
-        per_cam = np.resize(per_cam, (len(att_map), 1))
-        
-        
+        y_true = tf.expand_dims(y_true, 1)
+        per_cam = per_map * y_true
+        per_cam = tf.math.reduce_mean(per_cam,2, keepdims = True) # size = (batch, 12,1)
+
 #         # L1 norm
 #         mapp = tf.math.reduce_sum(tf.math.abs(heatmap-att_map), axis=1)
 #         L_edit = L_abn + tf.math.reduce_sum(mapp, axis=1)*gamma
@@ -285,23 +310,22 @@ def edit_ABN_model_loss(input_shape, n_classes, minimum_len, n, gamma, out_ch=25
     img_input = Input(shape=input_shape, name='input_image') 
     heatmap = Input(shape=(None,1), name='heatmap_image')   
     backbone = ieee_baseline_network(img_input)
-    att_pred, att_map = attention_branch(backbone, n, n_classes)
-    per_pred = perception_branch_primitive(att_map, n, n_classes)
+    att_pred, att_map_x, att_map = attention_branch2(backbone, n, n_classes)
+    per_pred = perception_branch_primitive(att_map_x, n, n_classes)
     model = Model(inputs=[img_input, heatmap], outputs=[att_pred, per_pred])
     
     customLoss = custom_loss(heatmap, att_map, gamma)
 
     return model, customLoss
 
-def endtoend_edit_ABN_model_loss(input_shape, n_classes, minimum_len, n, gamma, out_ch=256): # implement as described in ABN edit paper 
+def endtoend_edit_ABN_model_loss(input_shape, n_classes, minimum_len, n, gamma, batch_size, out_ch=256): # implement as described in ABN edit paper 
     img_input = Input(shape=input_shape, name='input_image') 
-    heatmap = Input(shape=(None,1), name='heatmap_image')   
     backbone = ieee_baseline_network(img_input)
-    att_pred, att_map = attention_branch(backbone, n, n_classes)
-    per_pred, per_map = perception_branch_endtoend(att_map, n, n_classes)
+    att_pred, att_map_x, att_map = attention_branch2(backbone, n, n_classes) # (batch, 12, 128)
+    per_pred, per_map = perception_branch_endtoend(att_map_x, n, n_classes)
     model = Model(inputs=img_input, outputs=[att_pred, per_pred])
     
-    customLoss = custom_loss(per_map, att_map, gamma)
+    customLoss = custom_loss_endtoend(per_map, att_map, gamma, n_classes, batch_size)
     
     
     
