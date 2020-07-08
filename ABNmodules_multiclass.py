@@ -16,58 +16,36 @@ def ieee_baseline_network(x):
     # Block 1
     out = layers.Conv1D(64, 3, 1, 'same')(x)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.Dropout(0.2)(out)  
-#     out = layers.LeakyReLU()(out)
     out = layers.Conv1D(64, 3, 1, 'same')(out)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-#     out = layers.LeakyReLU()(out)
-#     out = layers.Dropout(0.2)(out)  
-    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out) # 2880 -> 960
-    
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)
     out = layers.Conv1D(128, 3, 1, 'same')(out)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.Dropout(0.2)(out)  
-#     out = layers.LeakyReLU()(out)
     out = layers.Conv1D(128, 3, 1, 'same')(out)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-#     out = layers.LeakyReLU()(out)
-#     out = layers.Dropout(0.2)(out)  
-    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out) # 960 -> 320
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)
     
     # Block 2
     for _ in range(3):
         out = layers.Conv1D(256, 3, 1, 'same')(out)
         out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-#         out = layers.Dropout(0.2)(out)  
-#         out = layers.LeakyReLU()(out)
-#     out = layers.Dropout(0.2)(out)  
-    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out) # 320 -> 107
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)
     
     # Block 3
     for _ in range(3):
         out = layers.Conv1D(512, 3, 1, 'same')(out)
         out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-#         out = layers.Dropout(0.2)(out)  
-#         out = layers.LeakyReLU()(out)
-#     out = layers.Dropout(0.2)(out)  
-    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)      # 107 -> 36
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)    
     
     # Block 4
     out = layers.Conv1D(512, 3, 1, 'same')(out)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.Dropout(0.2)(out)  
-#     out = layers.LeakyReLU()(out)
     out = layers.Conv1D(256, 3, 1, 'same')(out)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    out = layers.Dropout(0.2)(out)  
-#     out = layers.LeakyReLU()(out)
     out = layers.Conv1D(128, 3, 1, 'same')(out)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-#     out = layers.LeakyReLU()(out)
-#     out = layers.Dropout(0.2)(out)  
-    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)    # 36 -> 12
-#     out = layers.LeakyReLU()(out)
-      
+    out = layers.MaxPooling1D(pool_size=3, strides=3, padding='same')(out)    
+    
     return out
 
 def basic_block(x, out_ch, kernel_size=3, stride=1, last_act=True):
@@ -80,7 +58,6 @@ def basic_block(x, out_ch, kernel_size=3, stride=1, last_act=True):
 
     out = layers.Conv1D(out_ch, kernel_size, stride, 'same', use_bias=False)(x)
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-#     out = layers.LeakyReLU()(out)
 
     if last_act is True:
         return layers.Activation(activations.relu)(out)
@@ -101,7 +78,6 @@ def bottleneck_block(x, out_ch, stride=1):
         ep = 1.001e-5
         shortcut = layers.Conv1D(out_ch, 1, stride, 'same', use_bias=False)(x)
         shortcut = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(shortcut)
-#         shortcut = layers.LeakyReLU()(shortcut)
     else:
         shortcut = x
 
@@ -109,9 +85,7 @@ def bottleneck_block(x, out_ch, stride=1):
     out = basic_block(out, out_ch//4, 3, stride)
     out = basic_block(out, out_ch, 1, last_act=False)
     out = layers.Add()([out, shortcut])
-#     out = layers.LeakyReLU()(out)
-    return layers.LeakyReLU()(out) 
-#     return layers.Activation(activations.relu)(out)
+    return layers.Activation(activations.relu)(out)
 
 
 def feature_extractor(x, out_ch, n):
@@ -146,7 +120,6 @@ def attention_branch(x, n, n_classes, name='attention_branch'): # heatmap 없는
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep, name=name+'_bn_1')(out)
     out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, activation=activations.relu ,name=name+'_conv_1')(out)
 
-    
     pred_out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, name=name+'_pred_conv_1')(out)
     pred_out = layers.GlobalAveragePooling1D(name=name+'_gap_1')(pred_out)
     pred_out = layers.Activation(activations.sigmoid, name='attention_branch_output')(pred_out)
@@ -215,6 +188,26 @@ def perception_branch_primitive(x,n, n_classes, name='perception_branch'):
     out = layers.Dense(n_classes, name=name+'_dense_2')(out)
     return layers.Activation(activations.sigmoid, name='perception_branch_output')(out)
 
+def perception_branch_endtoend(x,n, n_classes, name='perception_branch'):
+
+    filters = x._shape_tuple()[-1]
+    out = bottleneck_block(x, filters*2, 1)
+    for _ in range(n-1):
+        out = bottleneck_block(out, filters*2, 1)
+    
+    # 논문 참고
+    
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, activation=activations.relu ,name=name+'_conv_1')(out)
+    
+#     loss_out = layers.Conv1D(1, 1, 1, 'same', use_bias=False, name=name+'_per_loss_conv_1')(out)
+    loss_out = layers.BatchNormalization(axis=bn_axis, epsilon=ep, name=name+'_per_loss_bn_1')(out)
+    loss_out = layers.Activation(activations.sigmoid, name=name+'_per_loss_sigmoid_1')(loss_out)
+    
+    out = layers.GlobalAveragePooling1D(name=name+'_avgpool_1')(out) # 256
+#     out = layers.Dense(512, name=name+'_dense_1')(out)
+    out = layers.Dense(n_classes, name=name+'_dense_2')(out)
+    return layers.Activation(activations.sigmoid, name='perception_branch_output')(out), loss_out
 
 def primitive_ABN(input_shape, n_classes, minimum_len, n,out_ch=256):
     # use for training ABN for ABN (extract CAM from this model later)
@@ -251,14 +244,39 @@ def custom_loss(heatmap, att_map, gamma): # gamma = 0.0001
     def loss(y_true, y_pred):
         L_abn = binary_crossentropy(y_true, y_pred)
 
-        # L1 norm
-        mapp = tf.math.reduce_sum(tf.math.abs(heatmap-att_map), axis=1)
-        L_edit = L_abn + tf.math.reduce_sum(mapp, axis=1)*gamma
+#         # L1 norm
+#         mapp = tf.math.reduce_sum(tf.math.abs(heatmap-att_map), axis=1)
+#         L_edit = L_abn + tf.math.reduce_sum(mapp, axis=1)*gamma
 
-#         # L2 norm
-#         mapp = tf.math.reduce_sum(tf.math.square(heatmap-att_map), axis=1)
-#         mapp = tf.math.sqrt(tf.math.reduce_sum(mapp, axis=1))
-#         L_edit = L_abn + mapp*gamma
+        # L2 norm
+        mapp = tf.math.reduce_sum(tf.math.square(heatmap-att_map), axis=1)
+        mapp = tf.math.sqrt(tf.math.reduce_sum(mapp, axis=1))
+        L_edit = L_abn + mapp*gamma
+
+        return L_edit
+    return loss
+
+def custom_loss_endtoend(heatmap, att_map, gamma): # gamma = 0.0001
+    def loss(y_true, y_pred):
+        L_abn = binary_crossentropy(y_true, y_pred)
+        class_index=[]
+        per_cam = np.zeros((1,12))
+        [class_index.append(j) for j in range(len(y_true)) if y_true[j]==1]
+        
+        for label in class_index:
+            per_cam += heatmap[:,label]
+        per_cam %= len(class_index)
+        per_cam = np.resize(per_cam, (len(att_map), 1))
+        
+        
+#         # L1 norm
+#         mapp = tf.math.reduce_sum(tf.math.abs(heatmap-att_map), axis=1)
+#         L_edit = L_abn + tf.math.reduce_sum(mapp, axis=1)*gamma
+
+        # L2 norm
+        mapp = tf.math.reduce_sum(tf.math.square(per_cam-att_map), axis=1)
+        mapp = tf.math.sqrt(tf.math.reduce_sum(mapp, axis=1))
+        L_edit = L_abn + mapp*gamma
 
         return L_edit
     return loss
@@ -268,14 +286,26 @@ def edit_ABN_model_loss(input_shape, n_classes, minimum_len, n, gamma, out_ch=25
     heatmap = Input(shape=(None,1), name='heatmap_image')   
     backbone = ieee_baseline_network(img_input)
     att_pred, att_map = attention_branch(backbone, n, n_classes)
-    per_pred = perception_branch(att_map, n, n_classes)
+    per_pred = perception_branch_primitive(att_map, n, n_classes)
     model = Model(inputs=[img_input, heatmap], outputs=[att_pred, per_pred])
     
     customLoss = custom_loss(heatmap, att_map, gamma)
 
     return model, customLoss
 
-
+def endtoend_edit_ABN_model_loss(input_shape, n_classes, minimum_len, n, gamma, out_ch=256): # implement as described in ABN edit paper 
+    img_input = Input(shape=input_shape, name='input_image') 
+    heatmap = Input(shape=(None,1), name='heatmap_image')   
+    backbone = ieee_baseline_network(img_input)
+    att_pred, att_map = attention_branch(backbone, n, n_classes)
+    per_pred, per_map = perception_branch_endtoend(att_map, n, n_classes)
+    model = Model(inputs=img_input, outputs=[att_pred, per_pred])
+    
+    customLoss = custom_loss(per_map, att_map, gamma)
+    
+    
+    
+    return model, customLoss
 
 # def cam_primitive_model(input_shape, n_classes, minimum_len, out_ch=256, n=18): # don't use as backbone anymore (bad performance)
 #     img_input = Input(shape=input_shape, name='input_image')
