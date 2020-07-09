@@ -9,6 +9,45 @@ import cProfile
 from keras import initializers
 from keras.backend import tf as ktf
 import numpy as np
+
+def custom_loss(heatmap, att_map, gamma): # gamma = 0.0001
+    def loss(y_true, y_pred):
+        L_abn = binary_crossentropy(y_true, y_pred)
+
+        # att_map dim: (batch, 12, 128)
+        # heatmap dim: (batch, 12, 1)
+        
+#         # L1 norm
+#         mapp = tf.math.reduce_sum(tf.math.abs(heatmap-att_map), axis=1)
+#         L_edit = L_abn + tf.math.reduce_sum(mapp, axis=1)*gamma
+
+        # L2 norm
+        mapp = tf.math.reduce_sum(tf.math.square(heatmap-att_map), axis=1)
+        mapp = tf.math.sqrt(tf.math.reduce_sum(mapp, axis=1))
+        L_edit = L_abn + mapp*gamma
+
+        return L_edit
+    return loss
+
+def custom_loss_endtoend(per_map, att_map, gamma, n_classes): # gamma = 0.0001
+    def loss(y_true, y_pred):
+        L_abn = binary_crossentropy(y_true, y_pred)
+        y_true = tf.expand_dims(y_true, 1)
+        per_cam = per_map * y_true
+        per_cam = tf.math.reduce_mean(per_cam,2, keepdims = True) # size = (batch, 12,1)
+
+#         # L1 norm
+#         mapp = tf.math.reduce_sum(tf.math.abs(heatmap-att_map), axis=1)
+#         L_edit = L_abn + tf.math.reduce_sum(mapp, axis=1)*gamma
+
+        # L2 norm
+        mapp = tf.math.reduce_sum(tf.math.square(per_cam-att_map), axis=1)
+        mapp = tf.math.sqrt(tf.math.reduce_sum(mapp, axis=1))
+        L_edit = L_abn + mapp*gamma
+
+        return L_edit
+    return loss
+
 def ieee_baseline_network(x):
     bn_axis=2
     ep = 1.001e-5
@@ -155,7 +194,7 @@ def attention_branch2(x, n, n_classes, name='attention_branch'): # heatmap 없�
     att_out = layers.BatchNormalization(axis=bn_axis, epsilon=ep, name=name+'_att_bn_1')(att_out)
     att_out_ = layers.Activation(activations.sigmoid, name=name+'_att_sigmoid_1')(att_out)
     att_out = layers.Lambda(lambda z: (z[0] * z[1]) + z[0])([x, att_out_]) # (batch, 12, 128)
-    return pred_out, att_out, att_out_
+    return pred_out, att_out, att_out_, out
 
 def attention_branch_edit(x, n, n_classes, heatmap, name='attention_branch'):
     """
@@ -226,14 +265,18 @@ def perception_branch_endtoend(x,n, n_classes, name='perception_branch'):
     
     # 논문 참고
     
-    loss_out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
-    loss_out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, activation=activations.relu ,name=name+'_conv_1')(loss_out)
+    out = layers.BatchNormalization(axis=bn_axis, epsilon=ep)(out)
+    out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, activation=activations.relu ,name=name+'_conv_1')(out)
+    
+    
+    loss_out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, name=name+'_per_loss_conv1')(out)    
     loss_out = layers.BatchNormalization(axis=bn_axis, epsilon=ep, name=name+'_per_loss_bn_1')(loss_out)
     loss_out = layers.Activation(activations.sigmoid, name=name+'_per_loss_sigmoid_1')(loss_out)
     
     
+    out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False,name=name+'_conv_2')(out)
     out = layers.GlobalAveragePooling1D(name=name+'_avgpool_1')(out) # 256
-    out = layers.Dense(512, name=name+'_dense_1')(out)
+#     out = layers.Dense(512, name=name+'_dense_1')(out)
     out = layers.Dense(n_classes, name=name+'_dense_2')(out)
     return layers.Activation(activations.sigmoid, name='perception_branch_output')(out), loss_out # 크기는 여전히 12?
 
@@ -264,72 +307,36 @@ def edit_ABN_model(input_shape, n_classes, minimum_len, n,out_ch=256):
     model = Model(inputs=[img_input, heatmap], outputs=[att_pred, per_pred])
     return model
 
-
-
-
-
-def custom_loss(heatmap, att_map, gamma): # gamma = 0.0001
-    def loss(y_true, y_pred):
-        L_abn = binary_crossentropy(y_true, y_pred)
-
-        # att_map dim: (batch, 12, 128)
-        # heatmap dim: (batch, 12, 1)
-        
-#         # L1 norm
-#         mapp = tf.math.reduce_sum(tf.math.abs(heatmap-att_map), axis=1)
-#         L_edit = L_abn + tf.math.reduce_sum(mapp, axis=1)*gamma
-
-        # L2 norm
-        mapp = tf.math.reduce_sum(tf.math.square(heatmap-att_map), axis=1)
-        mapp = tf.math.sqrt(tf.math.reduce_sum(mapp, axis=1))
-        L_edit = L_abn + mapp*gamma
-
-        return L_edit
-    return loss
-
-def custom_loss_endtoend(per_map, att_map, gamma, n_classes, batch_size): # gamma = 0.0001
-    def loss(y_true, y_pred):
-        L_abn = binary_crossentropy(y_true, y_pred)
-        y_true = tf.expand_dims(y_true, 1)
-        per_cam = per_map * y_true
-        per_cam = tf.math.reduce_mean(per_cam,2, keepdims = True) # size = (batch, 12,1)
-
-#         # L1 norm
-#         mapp = tf.math.reduce_sum(tf.math.abs(heatmap-att_map), axis=1)
-#         L_edit = L_abn + tf.math.reduce_sum(mapp, axis=1)*gamma
-
-        # L2 norm
-        mapp = tf.math.reduce_sum(tf.math.square(per_cam-att_map), axis=1)
-        mapp = tf.math.sqrt(tf.math.reduce_sum(mapp, axis=1))
-        L_edit = L_abn + mapp*gamma
-
-        return L_edit
-    return loss
-
 def edit_ABN_model_loss(input_shape, n_classes, minimum_len, n, gamma, out_ch=256): # implement as described in ABN edit paper 
     img_input = Input(shape=input_shape, name='input_image') 
     heatmap = Input(shape=(None,1), name='heatmap_image')   
     backbone = ieee_baseline_network(img_input)
     att_pred, att_map_x, att_map = attention_branch2(backbone, n, n_classes)
-    per_pred = perception_branch_primitive(att_map_x, n, n_classes)
+    per_pred = perception_branch(att_map_x, n, n_classes)
     model = Model(inputs=[img_input, heatmap], outputs=[att_pred, per_pred])
     
     customLoss = custom_loss(heatmap, att_map, gamma)
 
     return model, customLoss
 
-def endtoend_edit_ABN_model_loss(input_shape, n_classes, minimum_len, n, gamma, batch_size, out_ch=256): # implement as described in ABN edit paper 
+def endtoend_edit_ABN_model_loss(input_shape, n_classes, minimum_len, n, gamma, out_ch=256): # implement as described in ABN edit paper 
     img_input = Input(shape=input_shape, name='input_image') 
     backbone = ieee_baseline_network(img_input)
-    att_pred, att_map_x, att_map = attention_branch2(backbone, n, n_classes) # (batch, 12, 128)
-    per_pred, per_map = perception_branch_endtoend(att_map_x, n, n_classes)
+    att_pred, att_map_x, att_map, classes_out = attention_branch2(backbone, n, n_classes) # (batch, 12, 128)
+    per_pred = perception_branch(att_map_x, n, n_classes)
     model = Model(inputs=img_input, outputs=[att_pred, per_pred])
     
-    customLoss = custom_loss_endtoend(per_map, att_map, gamma, n_classes, batch_size)
+    customLoss = custom_loss_endtoend(classes_out, att_map, gamma, n_classes)
     
     
     
     return model, customLoss
+
+
+
+
+
+
 
 # def cam_primitive_model(input_shape, n_classes, minimum_len, out_ch=256, n=18): # don't use as backbone anymore (bad performance)
 #     img_input = Input(shape=input_shape, name='input_image')
