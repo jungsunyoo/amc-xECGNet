@@ -29,7 +29,7 @@ def custom_loss(heatmap, att_map, gamma): # gamma = 0.0001
         return L_edit
     return loss
 
-def custom_loss_endtoend(per_map, att_map, gamma, n_classes): # gamma = 0.0001
+def custom_loss_endtoend(per_map, att_map, gamma): # gamma = 0.0001
     def loss(y_true, y_pred):
         L_abn = binary_crossentropy(y_true, y_pred)
         y_true = tf.expand_dims(y_true, 1)
@@ -238,7 +238,7 @@ def perception_branch(x,n, n_classes, name='perception_branch'):
         out = bottleneck_block(out, filters*2, 1)
 
     out = layers.GlobalAveragePooling1D(name=name+'_avgpool_1')(out)
-    out = layers.Dense(512, name=name+'_dense_1')(out)
+#     out = layers.Dense(512, name=name+'_dense_1')(out)
     out = layers.Dense(n_classes, name=name+'_dense_2')(out)
     return layers.Activation(activations.sigmoid, name='perception_branch_output')(out)
 
@@ -326,7 +326,7 @@ def endtoend_edit_ABN_model_loss(input_shape, n_classes, minimum_len, n, gamma, 
     per_pred = perception_branch(att_map_x, n, n_classes)
     model = Model(inputs=img_input, outputs=[att_pred, per_pred])
     
-    customLoss = custom_loss_endtoend(classes_out, att_map, gamma, n_classes)
+    customLoss = custom_loss_endtoend(classes_out, att_map, gamma)
     
     
     
