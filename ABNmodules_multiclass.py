@@ -186,8 +186,8 @@ def attention_branch2(x, n, n_classes, name='attention_branch'): # heatmap ì—†ëŠ
     out = layers.BatchNormalization(axis=bn_axis, epsilon=ep, name=name+'_bn_1')(out)
     out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, activation=activations.relu ,name=name+'_conv_1')(out)
 
-    pred_out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, name=name+'_pred_conv_1')(out)
-    pred_out = layers.GlobalAveragePooling1D(name=name+'_gap_1')(pred_out)
+#     pred_out = layers.Conv1D(n_classes, 1, 1, 'same', use_bias=False, name=name+'_pred_conv_1')(out)
+    pred_out = layers.GlobalAveragePooling1D(name=name+'_gap_1')(out)
     pred_out = layers.Activation(activations.sigmoid, name='attention_branch_output')(pred_out)
     
     att_out = layers.Conv1D(1, 1, 1, 'same', use_bias=False, name=name+'_att_conv_1')(out)
@@ -238,7 +238,7 @@ def perception_branch(x,n, n_classes, name='perception_branch'):
         out = bottleneck_block(out, filters*2, 1)
 
     out = layers.GlobalAveragePooling1D(name=name+'_avgpool_1')(out)
-#     out = layers.Dense(512, name=name+'_dense_1')(out)
+    out = layers.Dense(512, name=name+'_dense_1')(out)
     out = layers.Dense(n_classes, name=name+'_dense_2')(out)
     return layers.Activation(activations.sigmoid, name='perception_branch_output')(out)
 
