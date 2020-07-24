@@ -43,6 +43,7 @@ def custom_loss_endtoend(per_map, att_map, gamma): # gamma = 0.0001
         # L2 norm
         mapp = tf.math.reduce_sum(tf.math.square(per_cam-att_map), axis=1)
         mapp = tf.math.sqrt(tf.math.reduce_sum(mapp, axis=1))
+        mapp %= len(per_cam) # to match with L_abn, divide the value by batch size 
         L_edit = L_abn + mapp*gamma
 
         return L_edit
